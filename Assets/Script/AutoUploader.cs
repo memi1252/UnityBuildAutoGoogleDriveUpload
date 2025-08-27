@@ -81,10 +81,10 @@ public class AutoUploader
             if (process.ExitCode == 0)
             {
                 UnityEngine.Debug.Log("구글 드라이브 업로드 성공!");
-                DiscordBot.Create("https://discord.com/api/webhooks/1410251531944591381/WYPmPIxsn0HC6C4pbQ0MzbTyVyin0oWyT6y-5zjh6qW2iXWAeGhDHXBZOgM3QbyQjYeu")
+                DiscordBot.Create("디스코드웹후크 봇 생성후 토큰등록")
                 .WithEmbed
                     (
-                    Embed.Create().WithURL("https://drive.google.com/drive/folders/12CRitAQfQLnxZ4B-cfndkHN7e-yypvIa?usp=drive_link").WithTitle(zipFileName).WithDescription("빌드가 성공적으로 완료되었습니다.").WithColor(Color.green)
+                    Embed.Create().WithURL("구글드라이브링크(선택사항 필요없으니 지워도됨)").WithTitle(zipFileName).WithDescription("빌드가 성공적으로 완료되었습니다.").WithColor(Color.green)
                     ).Send();
 
                 // Delete the ZIP file after successful upload.
