@@ -4,6 +4,9 @@ using NKStudio.Discord.Module;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Threading;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEditor.Callbacks;
 using UnityEngine;
@@ -11,32 +14,49 @@ using UnityEngine;
 [InitializeOnLoad]
 public class AutoUploader
 {
-    // ºôµå°¡ ¿Ï·áµÇ¸é ÀÌ ÇÔ¼ö°¡ ÀÚµ¿À¸·Î È£ÃâµË´Ï´Ù.
+    // This function is automatically called when a build is completed.
     [PostProcessBuild(1)]
     public static void OnPostProcessBuild(BuildTarget target, string pathToBuiltProject)
     {
-        UnityEngine.Debug.Log("ºôµå ¿Ï·á! ±¸±Û µå¶óÀÌºê ¾÷·Îµå¸¦ ½ÃÀÛÇÕ´Ï´Ù.");
+        UnityEngine.Debug.Log("ë¹Œë“œ ì™„ë£Œ! êµ¬ê¸€ ë“œë¼ì´ë¸Œ ì—…ë¡œë“œë¥¼ ì‹œì‘í•©ë‹ˆë‹¤.");
 
-        // ºôµåµÈ Æú´õÀÇ °æ·Î¸¦ °¡Á®¿É´Ï´Ù.
+        // Get the path of the built folder.
         string buildDirectoryPath = Path.GetDirectoryName(pathToBuiltProject);
+        string buildFolderName = Path.GetFileNameWithoutExtension(pathToBuiltProject);
 
-        // rcloneÀ» »ç¿ëÇÏ¿© ºôµå Æú´õ¸¦ ÅëÂ°·Î ±¸±Û µå¶óÀÌºê¿¡ ¾÷·ÎµåÇÕ´Ï´Ù.
-        // ¾ĞÃà °úÁ¤Àº »ı·«ÇÕ´Ï´Ù.
-        string rcloneRemoteName = "meami"; // rclone config¿¡¼­ ¼³Á¤ÇÑ ¿ø°İ ÀÌ¸§
-        string rcloneDestPath = "Unity_Builds"; // ±¸±Û µå¶óÀÌºê ³» ¾÷·ÎµåÇÒ Æú´õ
+        // Define the path for the new ZIP file, placing it one level above the build folder.
+        string zipFileName = $"{Application.productName}_{DateTime.Now:yyyyMMdd_HHmmss}.zip";
+        string zipFilePath = Path.Combine(Path.GetDirectoryName(buildDirectoryPath), zipFileName);
 
-        // ¾÷·ÎµåÇÒ Æú´õ ÀÌ¸§¿¡ Å¸ÀÓ½ºÅÆÇÁ¸¦ Ãß°¡ÇÏ¿© Áßº¹À» ÇÇÇÕ´Ï´Ù.
-        string destFolderName = $"{Application.productName}_{DateTime.Now:yyyyMMdd_HHmmss}";
-        string arguments = $"copy \"{buildDirectoryPath}\" \"{rcloneRemoteName}:{rcloneDestPath}/{destFolderName}\"";
+        // Compress the build folder into a ZIP file.
+        try
+        {
+            // Add a short delay to ensure files are not in use.
+            Thread.Sleep(2000); // 2-second delay
 
-        // rclone ½ÇÇà ÆÄÀÏÀÇ ÀüÃ¼ °æ·Î¸¦ ÁöÁ¤ÇÕ´Ï´Ù.
-        // ¿¹½Ã: C:\\rclone\\rclone.exe
-        string rclonePath = Path.Combine(Application.dataPath, @"rclone-v1.71.0-windows-amd64/rclone.exe");
+            UnityEngine.Debug.Log($"ë¹Œë“œ í´ë”ë¥¼ ì••ì¶•í•˜ëŠ” ì¤‘: {buildDirectoryPath} -> {zipFilePath}");
+            ZipFile.CreateFromDirectory(buildDirectoryPath, zipFilePath);
+            UnityEngine.Debug.Log("ì••ì¶• ì™„ë£Œ!");
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogError($"ì••ì¶• ì¤‘ ì˜¤ë¥˜ ë°œìƒ: {e.Message}");
+            return;
+        }
+
+        // Use rclone to upload the compressed ZIP file to Google Drive.
+        string rcloneRemoteName = "rcloneìœ¼ë¡œ ë§Œë“  ì´ë¦„ì ì–´ì£¼ì„¸ìš”"; // The name of the remote set in rclone config
+        string rcloneDestPath = " êµ¬ê¸€ë“œë¼ì´ë¸Œ í´ë”ëª…ì„ ì…ë ¥í•˜ì„¸ìš”"; // The destination folder in Google Drive
+
+        string arguments = $"copy \"{zipFilePath}\" \"{rcloneRemoteName}:{rcloneDestPath}\"";
+
+        // Specify the full path of the rclone executable.
+        // The path uses the Unity project's internal folder.
+        string rclonePath = Path.Combine(Application.dataPath, @"BuildAutoUpload/rclone-v1.71.0-windows-amd64/rclone.exe");
 
         if (!File.Exists(rclonePath))
         {
-            UnityEngine.Debug.LogError("rclone.exe ÆÄÀÏÀ» ÁöÁ¤µÈ °æ·Î¿¡¼­ Ã£À» ¼ö ¾ø½À´Ï´Ù. °æ·Î¸¦ È®ÀÎÇØÁÖ¼¼¿ä.");
-            // ¿À·ù ¹ß»ı ÈÄ ·ÎµùÀÌ ¸ØÃßÁö ¾Êµµ·Ï ½ºÅ©¸³Æ®¸¦ Á¾·áÇÕ´Ï´Ù.
+            UnityEngine.Debug.LogError($"rclone.exe íŒŒì¼ì„ ì§€ì •ëœ ê²½ë¡œì—ì„œ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: {rclonePath}. ê²½ë¡œë¥¼ í™•ì¸í•´ì£¼ì„¸ìš”.");
             return;
         }
 
@@ -46,37 +66,41 @@ public class AutoUploader
             Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardOutput = true,
-            RedirectStandardError = true, // ¿¡·¯ Ãâ·Âµµ ¸®µğ·º¼Ç
+            RedirectStandardError = true, // Redirect error output
             CreateNoWindow = true
         };
 
         try
         {
             Process process = Process.Start(startInfo);
-            // rclone ÇÁ·Î¼¼½º°¡ Á¾·áµÉ ¶§±îÁö ±â´Ù¸° ÈÄ, Ãâ·ÂÀ» ÀĞ½À´Ï´Ù.
+            // Wait until the rclone process finishes, then read the output.
             process.WaitForExit();
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
 
             if (process.ExitCode == 0)
             {
-                UnityEngine.Debug.Log("±¸±Û µå¶óÀÌºê ¾÷·Îµå ¼º°ø!");
-                DiscordBot.Create("https://discord.com/api/webhooks/1409483541007568947/zYWeWJu9wHmdEfKC_Rb9bEAe9EZIqqIiZuLmu9Jor8Vo4Vp7a9Wmv3VGVG_Ml3z2UAri")
+                UnityEngine.Debug.Log("êµ¬ê¸€ ë“œë¼ì´ë¸Œ ì—…ë¡œë“œ ì„±ê³µ!");
+                DiscordBot.Create("https://discord.com/api/webhooks/1410251531944591381/WYPmPIxsn0HC6C4pbQ0MzbTyVyin0oWyT6y-5zjh6qW2iXWAeGhDHXBZOgM3QbyQjYeu")
                 .WithEmbed
                     (
-                    Embed.Create().WithURL("https://drive.google.com/drive/folders/1WaaRLNnnMTOT0L6i68ybcK2Gc20fkyre?usp=sharing").WithTitle("ºôµå¾Ë¸²").WithDescription("ºôµå°¡ ¼º°øÀûÀ¸·Î ¿Ï·áµÇ¾ú½À´Ï´Ù.").WithColor(Color.green)
+                    Embed.Create().WithURL("https://drive.google.com/drive/folders/12CRitAQfQLnxZ4B-cfndkHN7e-yypvIa?usp=drive_link").WithTitle(zipFileName).WithDescription("ë¹Œë“œê°€ ì„±ê³µì ìœ¼ë¡œ ì™„ë£Œë˜ì—ˆìŠµë‹ˆë‹¤.").WithColor(Color.green)
                     ).Send();
+
+                // Delete the ZIP file after successful upload.
+                File.Delete(zipFilePath);
+                UnityEngine.Debug.Log("ì—…ë¡œë“œëœ ZIP íŒŒì¼ ì‚­ì œ ì™„ë£Œ!");
             }
             else
             {
-                UnityEngine.Debug.LogError($"±¸±Û µå¶óÀÌºê ¾÷·Îµå ½ÇÆĞ: rclone Á¾·á ÄÚµå {process.ExitCode}");
-                UnityEngine.Debug.LogError($"rclone Ãâ·Â: {output}");
-                UnityEngine.Debug.LogError($"rclone ¿¡·¯: {error}");
+                UnityEngine.Debug.LogError($"êµ¬ê¸€ ë“œë¼ì´ë¸Œ ì—…ë¡œë“œ ì‹¤íŒ¨: rclone ì¢…ë£Œ ì½”ë“œ {process.ExitCode}");
+                UnityEngine.Debug.LogError($"rclone ì¶œë ¥: {output}");
+                UnityEngine.Debug.LogError($"rclone ì—ëŸ¬: {error}");
             }
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"¾÷·Îµå Áß ¿À·ù ¹ß»ı: {e.Message}");
+            UnityEngine.Debug.LogError($"ì—…ë¡œë“œ ì¤‘ ì˜¤ë¥˜ ë°œìƒ: {e.Message}");
         }
     }
 }
